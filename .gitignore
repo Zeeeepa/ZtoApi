@@ -70,7 +70,6 @@ coverage.html
 benchmark.txt
 
 # Go module cache
-go.sum
 
 # Node modules (if using frontend)
 node_modules/

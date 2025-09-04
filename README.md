@@ -174,6 +174,7 @@ docker run -p 9090:9090 \
 | `DEBUG_MODE` | 调试模式开关 | `true` | `false` |
 | `DEFAULT_STREAM` | 默认流式响应 | `true` | `false` |
 | `DASHBOARD_ENABLED` | Dashboard功能开关 | `true` | `false` |
+| `ENABLE_THINKING` | 思考功能开关 | `false` | `true` |
 
 #### 🔧 高级配置
 

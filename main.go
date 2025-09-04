@@ -25,6 +25,7 @@ var (
 	DEBUG_MODE       bool
 	DEFAULT_STREAM   bool
 	DASHBOARD_ENABLED bool
+	ENABLE_THINKING  bool
 )
 
 // 请求统计信息
@@ -89,6 +90,7 @@ func initConfig() {
 	DEBUG_MODE = getEnv("DEBUG_MODE", "true") == "true"
 	DEFAULT_STREAM = getEnv("DEFAULT_STREAM", "true") == "true"
 	DASHBOARD_ENABLED = getEnv("DASHBOARD_ENABLED", "true") == "true"
+	ENABLE_THINKING = getEnv("ENABLE_THINKING", "false") == "true"
 }
 
 // 记录请求统计信息
@@ -364,6 +366,7 @@ func main() {
 	log.Printf("Debug模式: %v", DEBUG_MODE)
 	log.Printf("默认流式响应: %v", DEFAULT_STREAM)
 	log.Printf("Dashboard启用: %v", DASHBOARD_ENABLED)
+	log.Printf("思考功能: %v", ENABLE_THINKING)
 	log.Fatal(http.ListenAndServe(PORT, nil))
 }
 
@@ -1378,7 +1381,7 @@ func handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		Messages: req.Messages,
 		Params:   map[string]interface{}{},
 		Features: map[string]interface{}{
-			"enable_thinking": true,
+			"enable_thinking": ENABLE_THINKING,
 		},
 		BackgroundTasks: map[string]bool{
 			"title_generation": false,
