@@ -52,29 +52,29 @@
     ```
 
 5. **访问API文档**
-    
-    启动服务后，可以通过浏览器访问以下地址查看完整的API文档：
+
+   启动服务后，可以通过浏览器访问以下地址查看完整的API文档：
     ```
     http://localhost:9090/docs
     ```
-    
-    API文档提供了以下功能：
+
+   API文档提供了以下功能：
     - 详细的API端点说明
     - 请求参数和响应格式
     - 多种编程语言的使用示例（Python、cURL、JavaScript）
     - 错误处理说明
 
 5. **访问Dashboard**
-   
+
    启动服务后，可以通过浏览器访问以下地址查看实时监控仪表板：
    ```
    http://localhost:9090/dashboard
    ```
-   
+
    Dashboard提供了以下功能：
-   - 实时显示API请求统计信息（总请求数、成功请求数、失败请求数、平均响应时间）
-   - 显示最近100条请求的详细信息（时间、方法、路径、状态码、耗时、客户端IP）
-   - 数据每5秒自动刷新一次
+    - 实时显示API请求统计信息（总请求数、成功请求数、失败请求数、平均响应时间）
+    - 显示最近100条请求的详细信息（时间、方法、路径、状态码、耗时、客户端IP）
+    - 数据每5秒自动刷新一次
 
 ### Docker部署
 
@@ -96,13 +96,13 @@
 1. Fork这个仓库到你的GitHub账户
 
 2. 在Render上创建新的Web Service：
-   - 连接你的GitHub仓库
-   - 选择Docker作为环境
-   - 设置以下环境变量：
-   - `ZAI_TOKEN`: Z.ai 的访问令牌 (可选，不提供将使用匿名token)
-   - `DEFAULT_KEY`: 客户端API密钥 (可选，默认: sk-your-key)
-   - `MODEL_NAME`: 显示的模型名称 (可选，默认: GLM-4.5)
-   - `PORT`: 服务监听端口 (Render会自动设置)
+    - 连接你的GitHub仓库
+    - 选择Docker作为环境
+    - 设置以下环境变量：
+    - `ZAI_TOKEN`: Z.ai 的访问令牌 (可选，不提供将自动获取随机匿名token)
+    - `DEFAULT_KEY`: 客户端API密钥 (可选，默认: sk-your-key)
+    - `MODEL_NAME`: 显示的模型名称 (可选，默认: GLM-4.5)
+    - `PORT`: 服务监听端口 (Render会自动设置)
 
 3. 部署完成后，使用Render提供的URL作为OpenAI API的base_url
 
@@ -162,7 +162,7 @@ docker run -p 9090:9090 \
 
 | 变量名 | 说明 | 默认值 | 示例 |
 |--------|------|--------|------|
-| `ZAI_TOKEN` | Z.ai 访问令牌 | 空（使用匿名token） | `eyJhbGciOiJFUzI1NiIs...` |
+| `ZAI_TOKEN` | Z.ai 访问令牌 | 空（自动获取随机匿名token） | `eyJhbGciOiJFUzI1NiIs...` |
 
 #### ⚙️ 可选配置
 
@@ -217,7 +217,7 @@ nano .env.local
 
 #### 方法3：匿名Token
 
-本项目支持自动获取匿名token，无需手动配置。当 `ANON_TOKEN_ENABLED` 常量为 `true` 时，系统会自动为每次对话获取不同的匿名token，避免共享记忆。
+本项目支持自动获取匿名token，无需手动配置。当 `ZAI_TOKEN` 环境变量未设置时，系统会自动为每次对话获取不同的随机匿名token，避免共享记忆。这种机制使得项目即使用户没有提供 Z.ai 的访问令牌也能正常工作。
 
 ### 🎯 使用示例
 
@@ -311,8 +311,8 @@ Ctrl+C
 2. **配置文件**: 建议将 `.env.local` 添加到 `.gitignore`
 3. **权限设置**: 确保启动脚本有执行权限 (`chmod +x start.sh`)
 4. **端口冲突**: 确保配置的端口没有被其他服务占用
-5. **匿名Token**: 使用匿名token时，每次对话都会有独立的上下文
-6. **思考过程**: 项目会自动处理模型的思考过程，可通过 `THINK_TAGS_MODE` 常量调整显示方式
+5. **匿名Token**: 当未设置 `ZAI_TOKEN` 时，系统会自动获取随机匿名token，每次对话都会有独立的上下文，无需手动配置即可使用
+6. **思考过程**: 项目会自动处理模型的思考过程，可通过 `ENABLE_THINKING` 环境变量或请求参数 `enable_thinking` 控制是否启用
 
 ## 📖 API使用示例
 
@@ -345,6 +345,15 @@ response = client.chat.completions.create(
 for chunk in response:
     if chunk.choices[0].delta.content:
         print(chunk.choices[0].delta.content, end="")
+
+# 启用思考功能的请求
+response = client.chat.completions.create(
+    model="GLM-4.5",
+    messages=[{"role": "user", "content": "请分析一下这个问题"}],
+    enable_thinking=True
+)
+
+print(response.choices[0].message.content)
 ```
 
 ### curl示例
@@ -369,6 +378,16 @@ curl -X POST http://localhost:9090/v1/chat/completions \
     "messages": [{"role": "user", "content": "你好"}],
     "stream": true
   }'
+
+# 启用思考功能的请求
+curl -X POST http://localhost:9090/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-api-key" \
+  -d '{
+    "model": "GLM-4.5",
+    "messages": [{"role": "user", "content": "请分析一下这个问题"}],
+    "enable_thinking": true
+  }'
 ```
 
 ### JavaScript示例
@@ -376,18 +395,25 @@ curl -X POST http://localhost:9090/v1/chat/completions \
 ```javascript
 const fetch = require('node-fetch');
 
-async function chatWithGLM(message, stream = false) {
+async function chatWithGLM(message, stream = false, enableThinking = null) {
+  const requestBody = {
+    model: 'GLM-4.5',
+    messages: [{ role: 'user', content: message }],
+    stream: stream
+  };
+  
+  // 如果指定了思考功能参数，则添加到请求中
+  if (enableThinking !== null) {
+    requestBody.enable_thinking = enableThinking;
+  }
+  
   const response = await fetch('http://localhost:9090/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer your-api-key'
     },
-    body: JSON.stringify({
-      model: 'GLM-4.5',
-      messages: [{ role: 'user', content: message }],
-      stream: stream
-    })
+    body: JSON.stringify(requestBody)
   });
 
   if (stream) {
@@ -431,6 +457,9 @@ async function chatWithGLM(message, stream = false) {
 
 // 使用示例
 chatWithGLM('你好，请介绍一下JavaScript', false);
+
+// 启用思考功能的示例
+chatWithGLM('请分析一下这个问题', false, true);
 ```
 
 ## 🔧 故障排除
@@ -438,21 +467,21 @@ chatWithGLM('你好，请介绍一下JavaScript', false);
 ### 常见问题
 
 1. **连接失败**
-   - 检查服务是否正常运行：`curl http://localhost:9090/v1/models`
-   - 访问API文档：`http://localhost:9090/docs`
-   - 确认端口配置正确
+    - 检查服务是否正常运行：`curl http://localhost:9090/v1/models`
+    - 访问API文档：`http://localhost:9090/docs`
+    - 确认端口配置正确
 
 2. **认证失败**
-   - 检查 `DEFAULT_KEY` 环境变量设置
-   - 确认请求头中的 `Authorization` 格式正确
+    - 检查 `DEFAULT_KEY` 环境变量设置
+    - 确认请求头中的 `Authorization` 格式正确
 
 3. **Z.ai Token无效**
-   - 检查 `ZAI_TOKEN` 环境变量设置
-   - 确认Token未过期
+    - 检查 `ZAI_TOKEN` 环境变量设置
+    - 确认Token未过期
 
 4. **思考过程显示异常**
-   - 检查 `DEBUG_MODE` 是否启用
-   - 查看服务日志获取详细信息
+    - 检查 `DEBUG_MODE` 是否启用
+    - 查看服务日志获取详细信息
 
 5. **端口被占用**: 修改 `PORT` 环境变量或停止占用端口的服务
 6. **权限不足**: 确保启动脚本有执行权限

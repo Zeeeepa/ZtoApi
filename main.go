@@ -81,12 +81,12 @@ func initConfig() {
 	ZAI_TOKEN = getEnv("ZAI_TOKEN", "")
 	MODEL_NAME = getEnv("MODEL_NAME", "GLM-4.5")
 	PORT = getEnv("PORT", "9090")
-	
+
 	// 处理PORT格式，确保有冒号前缀
 	if !strings.HasPrefix(PORT, ":") {
 		PORT = ":" + PORT
 	}
-	
+
 	DEBUG_MODE = getEnv("DEBUG_MODE", "true") == "true"
 	DEFAULT_STREAM = getEnv("DEFAULT_STREAM", "true") == "true"
 	DASHBOARD_ENABLED = getEnv("DASHBOARD_ENABLED", "true") == "true"
@@ -96,19 +96,19 @@ func initConfig() {
 // 记录请求统计信息
 func recordRequestStats(startTime time.Time, path string, status int) {
 	duration := time.Since(startTime)
-	
+
 	statsMutex.Lock()
 	defer statsMutex.Unlock()
-	
+
 	stats.TotalRequests++
 	stats.LastRequestTime = time.Now()
-	
+
 	if status >= 200 && status < 300 {
 		stats.SuccessfulRequests++
 	} else {
 		stats.FailedRequests++
 	}
-	
+
 	// 更新平均响应时间
 	if stats.TotalRequests > 0 {
 		totalDuration := stats.AverageResponseTime*time.Duration(stats.TotalRequests-1) + duration
@@ -122,7 +122,7 @@ func recordRequestStats(startTime time.Time, path string, status int) {
 func addLiveRequest(method, path string, status int, duration time.Duration, _, userAgent string) {
 	requestsMutex.Lock()
 	defer requestsMutex.Unlock()
-	
+
 	request := LiveRequest{
 		ID:        fmt.Sprintf("%d", time.Now().UnixNano()),
 		Timestamp: time.Now(),
@@ -132,9 +132,9 @@ func addLiveRequest(method, path string, status int, duration time.Duration, _, 
 		Duration:  duration.Milliseconds(),
 		UserAgent: userAgent,
 	}
-	
+
 	liveRequests = append(liveRequests, request)
-	
+
 	// 只保留最近的100条请求
 	if len(liveRequests) > 100 {
 		liveRequests = liveRequests[1:]
@@ -145,12 +145,12 @@ func addLiveRequest(method, path string, status int, duration time.Duration, _, 
 func getLiveRequestsData() []byte {
 	requestsMutex.Lock()
 	defer requestsMutex.Unlock()
-	
+
 	// 确保 liveRequests 不为 nil
 	if liveRequests == nil {
 		liveRequests = []LiveRequest{}
 	}
-	
+
 	data, err := json.Marshal(liveRequests)
 	if err != nil {
 		// 如果序列化失败，返回空数组
@@ -164,7 +164,7 @@ func getLiveRequestsData() []byte {
 func getStatsData() []byte {
 	statsMutex.Lock()
 	defer statsMutex.Unlock()
-	
+
 	data, _ := json.Marshal(stats)
 	return data
 }
@@ -186,12 +186,12 @@ func getClientIP(r *http.Request) string {
 			return strings.TrimSpace(ips[0])
 		}
 	}
-	
+
 	// 检查X-Real-IP头
 	if xri := r.Header.Get("X-Real-IP"); xri != "" {
 		return xri
 	}
-	
+
 	// 使用RemoteAddr
 	ip := r.RemoteAddr
 	// 移除端口号
@@ -203,11 +203,12 @@ func getClientIP(r *http.Request) string {
 
 // OpenAI 请求结构
 type OpenAIRequest struct {
-	Model       string    `json:"model"`
-	Messages    []Message `json:"messages"`
-	Stream      bool      `json:"stream,omitempty"`
-	Temperature float64   `json:"temperature,omitempty"`
-	MaxTokens   int       `json:"max_tokens,omitempty"`
+	Model        string    `json:"model"`
+	Messages     []Message `json:"messages"`
+	Stream       bool      `json:"stream,omitempty"`
+	Temperature  float64   `json:"temperature,omitempty"`
+	MaxTokens    int       `json:"max_tokens,omitempty"`
+	EnableThinking *bool    `json:"enable_thinking,omitempty"`
 }
 
 type Message struct {
@@ -345,13 +346,13 @@ func getAnonymousToken() (string, error) {
 func main() {
 	// 初始化配置
 	initConfig()
-	
+
 	// 注册路由
 	http.HandleFunc("/v1/models", handleModels)
 	http.HandleFunc("/v1/chat/completions", handleChatCompletions)
 	http.HandleFunc("/docs", handleAPIDocs)
 	http.HandleFunc("/", handleOptions)
-	
+
 	// Dashboard路由
 	if DASHBOARD_ENABLED {
 		http.HandleFunc("/dashboard", handleDashboard)
@@ -377,7 +378,7 @@ func handleDashboard(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	// 简单的HTML模板
 	tmpl := `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -490,7 +491,7 @@ func handleDashboard(w http.ResponseWriter, r *http.Request) {
 <body>
     <div class="container">
         <h1>API调用看板</h1>
-        
+
         <div class="stats-container">
             <div class="stat-card">
                 <div class="stat-value" id="total-requests">0</div>
@@ -509,12 +510,12 @@ func handleDashboard(w http.ResponseWriter, r *http.Request) {
                 <div class="stat-label">平均响应时间</div>
             </div>
         </div>
-        
+
         <div class="chart-container">
             <h2>请求统计图表</h2>
             <canvas id="requestsChart"></canvas>
         </div>
-        
+
         <div class="requests-container">
             <h2>实时请求</h2>
             <table class="requests-table">
@@ -538,7 +539,7 @@ func handleDashboard(w http.ResponseWriter, r *http.Request) {
                 <button id="next-page" disabled>下一页</button>
             </div>
         </div>
-        
+
         <div class="refresh-info">
             数据每5秒自动刷新一次
         </div>
@@ -551,7 +552,7 @@ func handleDashboard(w http.ResponseWriter, r *http.Request) {
         let currentPage = 1;
         const itemsPerPage = 10;
         let requestsChart = null;
-        
+
         // 更新统计数据
         function updateStats() {
             fetch('/dashboard/stats')
@@ -564,7 +565,7 @@ func handleDashboard(w http.ResponseWriter, r *http.Request) {
                 })
                 .catch(error => console.error('Error fetching stats:', error));
         }
-        
+
         // 更新请求列表
         function updateRequests() {
             fetch('/dashboard/requests')
@@ -575,42 +576,42 @@ func handleDashboard(w http.ResponseWriter, r *http.Request) {
                         console.error('返回的数据不是数组:', data);
                         return;
                     }
-                    
+
                     // 保存所有请求数据
                     allRequests = data;
-                    
+
                     // 按时间倒序排列
                     allRequests.sort((a, b) => {
                         const timeA = new Date(a.timestamp);
                         const timeB = new Date(b.timestamp);
                         return timeB - timeA;
                     });
-                    
+
                     // 更新表格
                     updateTable();
-                    
+
                     // 更新图表
                     updateChart();
-                    
+
                     // 更新分页信息
                     updatePagination();
                 })
                 .catch(error => console.error('Error fetching requests:', error));
         }
-        
+
         // 更新表格显示
         function updateTable() {
             const tbody = document.getElementById('requests-tbody');
             tbody.innerHTML = '';
-            
+
             // 计算当前页的数据范围
             const startIndex = (currentPage - 1) * itemsPerPage;
             const endIndex = startIndex + itemsPerPage;
             const currentRequests = allRequests.slice(startIndex, endIndex);
-            
+
             currentRequests.forEach(request => {
                 const row = document.createElement('tr');
-                
+
                 // 格式化时间 - 检查时间戳是否有效
                 let timeStr = "Invalid Date";
                 if (request.timestamp) {
@@ -623,16 +624,16 @@ func handleDashboard(w http.ResponseWriter, r *http.Request) {
                         console.error("时间格式化错误:", e);
                     }
                 }
-                
+
                 // 状态样式
                 const statusClass = request.status >= 200 && request.status < 300 ? 'status-success' : 'status-error';
-                
+
                 // 截断 User Agent，避免过长
                 let userAgent = request.user_agent || "undefined";
                 if (userAgent.length > 30) {
                     userAgent = userAgent.substring(0, 30) + "...";
                 }
-                
+
                 row.innerHTML =
                    "<td>" + timeStr + "</td>" +
                    "<td>GLM-4.5</td>" +
@@ -640,24 +641,24 @@ func handleDashboard(w http.ResponseWriter, r *http.Request) {
                    "<td class=\"" + statusClass + "\">" + (request.status || "undefined") + "</td>" +
                    "<td>" + ((request.duration / 1000).toFixed(2) || "undefined") + "s</td>" +
                    "<td title=\"" + (request.user_agent || "") + "\">" + userAgent + "</td>";
-                
+
                 tbody.appendChild(row);
             });
         }
-        
+
         // 更新分页信息
         function updatePagination() {
             const totalPages = Math.ceil(allRequests.length / itemsPerPage);
             document.getElementById('page-info').textContent = "第 " + currentPage + " 页，共 " + totalPages + " 页";
-            
+
             document.getElementById('prev-page').disabled = currentPage <= 1;
             document.getElementById('next-page').disabled = currentPage >= totalPages;
         }
-        
+
         // 更新图表
         function updateChart() {
             const ctx = document.getElementById('requestsChart').getContext('2d');
-            
+
             // 准备图表数据 - 最近20条请求的响应时间
             const chartData = allRequests.slice(0, 20).reverse();
             const labels = chartData.map(req => {
@@ -665,12 +666,12 @@ func handleDashboard(w http.ResponseWriter, r *http.Request) {
                 return time.toLocaleTimeString();
             });
             const responseTimes = chartData.map(req => req.duration);
-            
+
             // 如果图表已存在，先销毁
             if (requestsChart) {
                 requestsChart.destroy();
             }
-            
+
             // 创建新图表
             requestsChart = new Chart(ctx, {
                 type: 'line',
@@ -712,7 +713,7 @@ func handleDashboard(w http.ResponseWriter, r *http.Request) {
                 }
             });
         }
-        
+
         // 分页按钮事件
         document.getElementById('prev-page').addEventListener('click', function() {
             if (currentPage > 1) {
@@ -721,7 +722,7 @@ func handleDashboard(w http.ResponseWriter, r *http.Request) {
                 updatePagination();
             }
         });
-        
+
         document.getElementById('next-page').addEventListener('click', function() {
             const totalPages = Math.ceil(allRequests.length / itemsPerPage);
             if (currentPage < totalPages) {
@@ -730,18 +731,18 @@ func handleDashboard(w http.ResponseWriter, r *http.Request) {
                 updatePagination();
             }
         });
-        
+
         // 初始加载
         updateStats();
         updateRequests();
-        
+
         // 定时刷新
         setInterval(updateStats, 5000);
         setInterval(updateRequests, 5000);
     </script>
 </body>
 </html>`
-	
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprint(w, tmpl)
 }
@@ -765,7 +766,7 @@ func handleAPIDocs(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	
+
 	// API文档HTML模板
 	tmpl := `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -929,7 +930,7 @@ func handleAPIDocs(w http.ResponseWriter, r *http.Request) {
 <body>
     <div class="container">
         <h1>ZtoApi 文档</h1>
-        
+
         <div class="toc">
             <h2>目录</h2>
             <ul>
@@ -945,7 +946,7 @@ func handleAPIDocs(w http.ResponseWriter, r *http.Request) {
                 <li><a href="#error-handling">错误处理</a></li>
             </ul>
         </div>
-        
+
         <section id="overview">
             <h2>概述</h2>
             <p>这是一个为Z.ai GLM-4.5模型提供OpenAI兼容API接口的代理服务器。它允许你使用标准的OpenAI API格式与Z.ai的GLM-4.5模型进行交互，支持流式和非流式响应。</p>
@@ -954,7 +955,7 @@ func handleAPIDocs(w http.ResponseWriter, r *http.Request) {
                 <strong>注意:</strong> 默认端口为9090，可以通过环境变量PORT进行修改。
             </div>
         </section>
-        
+
         <section id="authentication">
             <h2>身份验证</h2>
             <p>所有API请求都需要在请求头中包含有效的API密钥进行身份验证：</p>
@@ -962,10 +963,10 @@ func handleAPIDocs(w http.ResponseWriter, r *http.Request) {
 Authorization: Bearer your-api-key</div>
             <p>默认的API密钥为 <code>sk-your-key</code>，可以通过环境变量 <code>DEFAULT_KEY</code> 进行修改。</p>
         </section>
-        
+
         <section id="endpoints">
             <h2>API端点</h2>
-            
+
             <div class="endpoint" id="models">
                 <h3>获取模型列表</h3>
                 <div>
@@ -992,7 +993,7 @@ Authorization: Bearer your-api-key</div>
   ]
 }</div>
             </div>
-            
+
             <div class="endpoint" id="chat-completions">
                 <h3>聊天完成</h3>
                 <div>
@@ -1039,11 +1040,17 @@ Authorization: Bearer your-api-key</div>
                                 <td>采样温度，控制随机性</td>
                             </tr>
                             <tr>
-                                <td>max_tokens</td>
-                                <td>integer</td>
-                                <td>否</td>
-                                <td>生成的最大令牌数</td>
-                            </tr>
+                               <td>max_tokens</td>
+                               <td>integer</td>
+                               <td>否</td>
+                               <td>生成的最大令牌数</td>
+                           </tr>
+                           <tr>
+                               <td>enable_thinking</td>
+                               <td>boolean</td>
+                               <td>否</td>
+                               <td>是否启用思考功能，默认使用环境变量 ENABLE_THINKING 的值</td>
+                           </tr>
                         </tbody>
                     </table>
                 </div>
@@ -1073,16 +1080,16 @@ Authorization: Bearer your-api-key</div>
                 </div>
             </div>
         </section>
-        
+
         <section id="examples">
             <h2>使用示例</h2>
-            
+
             <div class="tab">
                 <button class="tablinks active" onclick="openTab(event, 'python-tab')">Python</button>
                 <button class="tablinks" onclick="openTab(event, 'curl-tab')">cURL</button>
                 <button class="tablinks" onclick="openTab(event, 'javascript-tab')">JavaScript</button>
             </div>
-            
+
             <div id="python-tab" class="tabcontent" style="display: block;">
                 <h3>Python示例</h3>
                 <div class="example">
@@ -1113,7 +1120,7 @@ for chunk in response:
     if chunk.choices[0].delta.content:
         print(chunk.choices[0].delta.content, end="")</div>
             </div>
-            
+
             <div id="curl-tab" class="tabcontent">
                 <h3>cURL示例</h3>
                 <div class="example">
@@ -1136,8 +1143,18 @@ curl -X POST http://localhost:9090/v1/chat/completions \
     "messages": [{"role": "user", "content": "你好"}],
     "stream": true
   }'</div>
+
+# 启用思考功能的请求
+curl -X POST http://localhost:9090/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-api-key" \
+  -d '{
+    "model": "GLM-4.5",
+    "messages": [{"role": "user", "content": "请分析一下这个问题"}],
+    "enable_thinking": true
+  }'
             </div>
-            
+
             <div id="javascript-tab" class="tabcontent">
                 <h3>JavaScript示例</h3>
                 <div class="example">
@@ -1161,14 +1178,14 @@ async function chatWithGLM(message, stream = false) {
     // 处理流式响应
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
-    
+
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      
+
       const chunk = decoder.decode(value);
       const lines = chunk.split('\n');
-      
+
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           const data = line.slice(6);
@@ -1176,7 +1193,7 @@ async function chatWithGLM(message, stream = false) {
             console.log('\n流式响应完成');
             return;
           }
-          
+
           try {
             const parsed = JSON.parse(data);
             const content = parsed.choices[0]?.delta?.content;
@@ -1200,7 +1217,7 @@ async function chatWithGLM(message, stream = false) {
 chatWithGLM('你好，请介绍一下JavaScript', false);</div>
             </div>
         </section>
-        
+
         <section id="error-handling">
             <h2>错误处理</h2>
             <p>API使用标准HTTP状态码来表示请求的成功或失败：</p>
@@ -1253,7 +1270,7 @@ chatWithGLM('你好，请介绍一下JavaScript', false);</div>
     </script>
 </body>
 </html>`
-	
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprint(w, tmpl)
 }
@@ -1302,7 +1319,7 @@ func handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	clientIP := getClientIP(r)
 	userAgent := r.UserAgent()
-	
+
 	setCORSHeaders(w)
 	if r.Method == "OPTIONS" {
 		w.WriteHeader(http.StatusOK)
@@ -1372,6 +1389,15 @@ func handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	chatID := fmt.Sprintf("%d-%d", time.Now().UnixNano(), time.Now().Unix())
 	msgID := fmt.Sprintf("%d", time.Now().UnixNano())
 
+	// 决定是否启用思考功能：优先使用请求参数，其次使用环境变量
+	enableThinking := ENABLE_THINKING // 默认使用环境变量值
+	if req.EnableThinking != nil {
+		enableThinking = *req.EnableThinking
+		debugLog("使用请求参数中的思考功能设置: %v", enableThinking)
+	} else {
+		debugLog("使用环境变量中的思考功能设置: %v", enableThinking)
+	}
+
 	// 构造上游请求
 	upstreamReq := UpstreamRequest{
 		Stream:   true, // 总是使用流式从上游获取
@@ -1381,7 +1407,7 @@ func handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		Messages: req.Messages,
 		Params:   map[string]interface{}{},
 		Features: map[string]interface{}{
-			"enable_thinking": ENABLE_THINKING,
+			"enable_thinking": enableThinking,
 		},
 		BackgroundTasks: map[string]bool{
 			"title_generation": false,
@@ -1653,7 +1679,7 @@ func handleStreamResponseWithIDs(w http.ResponseWriter, upstreamReq UpstreamRequ
 	if err := scanner.Err(); err != nil {
 		debugLog("扫描器错误: %v", err)
 	}
-	
+
 	// 记录成功请求统计
 	duration := time.Since(startTime)
 	recordRequestStats(startTime, path, http.StatusOK)
@@ -1779,7 +1805,7 @@ func handleNonStreamResponseWithIDs(w http.ResponseWriter, upstreamReq UpstreamR
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 	debugLog("非流式响应发送完成")
-	
+
 	// 记录成功请求统计
 	duration := time.Since(startTime)
 	recordRequestStats(startTime, path, http.StatusOK)
